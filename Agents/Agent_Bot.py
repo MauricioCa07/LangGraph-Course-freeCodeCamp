@@ -1,28 +1,61 @@
-from typing import TypedDict, List
-from langchain_core.messages import HumanMessage
-from langchain_openai import ChatOpenAI
+# The ones that i already known
+from typing import TypedDict, List,Union
 from langgraph.graph import StateGraph, START, END
+
+# The new ones
+from langchain_core.messages import HumanMessage, AIMessage
+from langchain_deepseek import ChatDeepSeek
 from dotenv import load_dotenv # used to store secret stuff like API keys or configuration values
+
+
 
 load_dotenv()
 
-class AgentState(TypedDict):
-    messages: List[HumanMessage]
 
-llm = ChatOpenAI(model="gpt-4o")
+llm = ChatDeepSeek(
+    model="deepseek-v4-pro",
+    #temperature=0,
+    #max_tokens=None,
+    #timeout=None,
+    #max_retries=2,
+)
+
+
+class AgentState(TypedDict):
+    messages: List[Union[HumanMessage,AIMessage]]
+
+
 
 def process(state: AgentState) -> AgentState:
     response = llm.invoke(state["messages"])
-    print(f"\nAI: {response.content}")
+
+    state["messages"].append(AIMessage(content=response.content))
+    print(response.content)
+
     return state
 
+
+
 graph = StateGraph(AgentState)
-graph.add_node("process", process)
-graph.add_edge(START, "process")
-graph.add_edge("process", END) 
+
+graph.add_node("chat_node", process)
+
+
+graph.add_edge(START,"chat_node")
+graph.add_edge("chat_node",END)
+
+
 agent = graph.compile()
 
-user_input = input("Enter: ")
-while user_input != "exit":
-    agent.invoke({"messages": [HumanMessage(content=user_input)]})
-    user_input = input("Enter: ")
+
+conversation_history = []
+
+message = input("-> ")
+while message:
+    conversation_history.append(HumanMessage(content=message))
+    result = agent.invoke({"messages":conversation_history})
+    conversation_history = result["messages"]
+    print(conversation_history)
+    message = input("-> ")
+
+
